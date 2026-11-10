@@ -27,9 +27,11 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedTrade, setSelectedTrade] = useState<string>("all");
 
-  const loadJobs = async () => {
+  const loadJobs = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent && jobs.length === 0) {
+        setLoading(true);
+      }
       const isWorker = profile?.role === "worker";
       const url = isWorker
         ? `/api/jobs?available=true${selectedTrade !== "all" ? `&trade=${selectedTrade}` : ""}`
@@ -49,9 +51,9 @@ export default function JobsPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      loadJobs();
+      loadJobs(jobs.length > 0);
     }
-  }, [user, profile, authLoading, selectedTrade]);
+  }, [user?.uid, profile?.role, authLoading, selectedTrade]);
 
   const handleApply = async (jobId: string) => {
     if (!user) return;

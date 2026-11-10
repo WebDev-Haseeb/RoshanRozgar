@@ -130,11 +130,15 @@ export default function DashboardPage() {
     };
   }, [audioUrl]);
 
+  const initialLoadedRef = useRef(false);
+
   // Fetch jobs from Supabase
-  const loadJobs = async () => {
+  const loadJobs = async (silent = false) => {
     if (!user) return;
     try {
-      setLoadingJobs(true);
+      if (!silent && jobs.length === 0) {
+        setLoadingJobs(true);
+      }
       const isWorker = profile?.role === "worker";
 
       if (isWorker) {
@@ -167,9 +171,11 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      loadJobs();
+      const silent = initialLoadedRef.current;
+      loadJobs(silent);
+      initialLoadedRef.current = true;
     }
-  }, [user, profile, authLoading]);
+  }, [user?.uid, profile?.role, profile?.trade, authLoading]);
 
   // Voice recording handlers for Client
   const startRecording = async () => {
@@ -541,7 +547,7 @@ export default function DashboardPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={loadJobs}
+                  onClick={() => loadJobs(false)}
                   className="text-[13px] font-medium text-link hover:underline cursor-pointer"
                 >
                   Refresh Leads
@@ -614,7 +620,7 @@ export default function DashboardPage() {
               </div>
               <button
                 type="button"
-                onClick={loadJobs}
+                onClick={() => loadJobs(false)}
                 className="text-[13px] font-medium text-link hover:underline cursor-pointer"
               >
                 Refresh

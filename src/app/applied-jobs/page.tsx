@@ -24,10 +24,12 @@ export default function AppliedJobsPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
 
-  const loadMyJobs = async () => {
+  const loadMyJobs = async (silent = false) => {
     if (!user) return;
     try {
-      setLoading(true);
+      if (!silent && jobs.length === 0) {
+        setLoading(true);
+      }
       const res = await fetch(`/api/jobs?workerId=${encodeURIComponent(user.uid)}`);
       if (res.ok) {
         const data = await res.json();
@@ -42,9 +44,9 @@ export default function AppliedJobsPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      loadMyJobs();
+      loadMyJobs(jobs.length > 0);
     }
-  }, [user, authLoading]);
+  }, [user?.uid, authLoading]);
 
   const handleUpdateStatus = async (jobId: string, status: "in_progress" | "completed") => {
     try {
