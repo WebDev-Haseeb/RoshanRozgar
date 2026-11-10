@@ -47,6 +47,7 @@ export interface UserProfileData {
   bioUrdu?: string | null;
   bioEnglish?: string | null;
   tagline?: string | null;
+  slug?: string | null;
   skills?: string[];
   experienceYears?: number | null;
   voiceNoteTranscript?: string | null;

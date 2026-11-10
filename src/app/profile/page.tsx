@@ -92,14 +92,36 @@ export default function ProfilePage() {
   const [sector, setSector] = useState(SECTORS[2]);
   const [phone, setPhone] = useState("");
 
+  const [customSlug, setCustomSlug] = useState("");
+  const [savingSlug, setSavingSlug] = useState(false);
+  const [slugSuccess, setSlugSuccess] = useState(false);
+
   useEffect(() => {
     if (profile) {
       setDisplayName(profile.displayName || "");
       setTrade(profile.trade || "electrician");
       setSector(profile.sector || SECTORS[2]);
       setPhone(profile.phone || "");
+      setCustomSlug(profile.slug || "");
     }
   }, [profile]);
+
+  const handleSaveSlug = async () => {
+    if (!customSlug.trim()) return;
+    setSavingSlug(true);
+    try {
+      await updateUserBioProfile({
+        slug: customSlug.trim(),
+      });
+      setSlugSuccess(true);
+      await refreshProfile();
+      setTimeout(() => setSlugSuccess(false), 2500);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingSlug(false);
+    }
+  };
 
   // Open Projects for Worker
   const [openProjects, setOpenProjects] = useState<any[]>([]);
@@ -622,6 +644,59 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+
+            {/* Custom Worker Slug Profile URL */}
+            {isWorker && (
+              <div className="mt-6 border-t border-line pt-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="text-[12px] font-semibold text-ink uppercase tracking-wider">
+                      Your Custom Worker Profile Slug
+                    </label>
+                    <p className="text-[12px] text-ink-secondary">
+                      Choose your own personalized portfolio URL for clients to view and book your services
+                    </p>
+                  </div>
+
+                  {profile?.slug && (
+                    <Link
+                      href={`/workers/${profile.slug}`}
+                      target="_blank"
+                      className="text-[12px] font-medium text-link hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <span>View Public Page</span>
+                      <span>↗</span>
+                    </Link>
+                  )}
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                  <div className="flex items-center rounded-xl border border-line bg-surface/30 px-3 py-2 text-[13px] text-ink-secondary flex-1">
+                    <span className="text-ink-tertiary select-none">roshanrozgar.pk/workers/</span>
+                    <input
+                      type="text"
+                      value={customSlug}
+                      onChange={(e) => setCustomSlug(e.target.value)}
+                      placeholder="e.g. ejaz-electrician"
+                      className="bg-transparent text-ink font-semibold outline-none flex-1 pl-1"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveSlug}
+                    disabled={savingSlug || !customSlug.trim()}
+                    className={buttonStyles({
+                      variant: "dark",
+                      size: "sm",
+                      className: "cursor-pointer whitespace-nowrap",
+                    })}
+                  >
+                    {savingSlug ? "Saving..." : slugSuccess ? "Saved!" : "Save Slug"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Display Skills */}
             {profile?.skills && profile.skills.length > 0 && (

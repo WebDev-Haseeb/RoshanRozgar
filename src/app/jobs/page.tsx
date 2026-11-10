@@ -195,14 +195,24 @@ export default function JobsPage() {
                       <button
                         type="button"
                         onClick={() => handleApply(job.id)}
-                        className={buttonStyles({ variant: "dark", size: "sm" })}
+                        className={buttonStyles({ variant: "dark", size: "sm", className: "cursor-pointer" })}
                       >
                         Accept Lead / کام قبول کریں
                       </button>
                     ) : (
-                      <span className="text-[13px] font-medium text-ink capitalize">
-                        Status: {job.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[12px] font-medium text-ink capitalize bg-surface px-2.5 py-1 rounded-full border border-line">
+                          {job.status}
+                        </span>
+                        {(job.status === "accepted" || job.status === "in_progress") && (
+                          <Link
+                            href="/dashboard"
+                            className={buttonStyles({ variant: "dark", size: "sm", className: "cursor-pointer" })}
+                          >
+                            Manage & Rate
+                          </Link>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>

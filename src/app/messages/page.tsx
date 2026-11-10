@@ -14,6 +14,7 @@ import {
   Volume2,
   Square,
   CheckCircle2,
+  AlertCircle,
 } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -60,15 +61,22 @@ export default function MessagesPage() {
   const [inputText, setInputText] = useState("");
   const [sending, setSending] = useState(false);
 
-  // AI Voice Note modal
+  // Real Audio Voice Recording State
   const [showVoiceModal, setShowVoiceModal] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [recordedDraft, setRecordedDraft] = useState("");
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const [isAiEnhancing, setIsAiEnhancing] = useState(false);
   const [enhancedText, setEnhancedText] = useState("");
+  const [micError, setMicError] = useState<string | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const speechRecognitionRef = useRef<any>(null);
   const chatBottomRef = useRef<HTMLDivElement | null>(null);
+  const recordedDraftRef = useRef<string>("");
 
   // Real-time Firebase RTDB Subscription
   useEffect(() => {
@@ -76,7 +84,6 @@ export default function MessagesPage() {
       if (msgs.length > 0) {
         setMessages(msgs);
       } else {
-        // Fallback seed messages if empty in RTDB
         setMessages([
           {
             id: "seed-1",
@@ -102,6 +109,9 @@ export default function MessagesPage() {
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+      }
     };
   }, []);
 
@@ -128,33 +138,126 @@ export default function MessagesPage() {
     }
   };
 
-  // Start voice recording simulation
-  const handleToggleRecord = () => {
-    if (isRecording) {
-      setIsRecording(false);
-      if (timerRef.current) clearInterval(timerRef.current);
-      setRecordedDraft(SAMPLE_VOICE_CHATS[0]);
-    } else {
+  // Start real recording (user stops when they want)
+  const startVoiceRecording = async () => {
+    setMicError(null);
+    setRecordedDraft("");
+    recordedDraftRef.current = "";
+    setEnhancedText("");
+    audioChunksRef.current = [];
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        stream.getTracks().forEach((track) => track.stop());
+
+        // Transcribe audio using speech or Gemini API
+        setIsTranscribing(true);
+        try {
+          const buffer = await audioBlob.arrayBuffer();
+          const base64 = Buffer.from(buffer).toString("base64");
+          const capturedLive = recordedDraftRef.current.trim();
+
+          const res = await fetch("/api/ai/transcribe-chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              audioBase64: base64,
+              mimeType: "audio/webm",
+              fallbackText: capturedLive,
+            }),
+          });
+
+          const data = await res.json();
+          if (data.transcription && data.transcription.trim()) {
+            setRecordedDraft(data.transcription);
+            recordedDraftRef.current = data.transcription;
+            if (data.improved) {
+              setEnhancedText(data.improved);
+            }
+          } else if (capturedLive) {
+            setRecordedDraft(capturedLive);
+          }
+        } catch (err) {
+          console.error("Transcription error:", err);
+          if (recordedDraftRef.current) {
+            setRecordedDraft(recordedDraftRef.current);
+          }
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      // Also use browser speech recognition if available for instant live captions
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        // Support browser language or Urdu
+        recognition.lang = navigator.language.startsWith("ur") ? "ur-PK" : (navigator.language || "en-US");
+
+        recognition.onresult = (event: any) => {
+          let liveText = "";
+          for (let i = 0; i < event.results.length; i++) {
+            liveText += event.results[i][0].transcript;
+          }
+          if (liveText.trim()) {
+            recordedDraftRef.current = liveText.trim();
+            setRecordedDraft(liveText.trim());
+          }
+        };
+
+        recognition.onerror = () => {};
+        recognition.start();
+        speechRecognitionRef.current = recognition;
+      }
+
+      mediaRecorder.start(250);
       setIsRecording(true);
       setRecordSeconds(0);
-      setRecordedDraft("");
-      setEnhancedText("");
 
       timerRef.current = setInterval(() => {
         setRecordSeconds((s) => s + 1);
       }, 1000);
+    } catch (err: any) {
+      console.warn("Microphone access failed:", err);
+      setMicError("Microphone access denied. You can click one of the quick voice messages below.");
+    }
+  };
 
-      // Auto stop after 4s
-      setTimeout(() => {
-        setIsRecording(false);
-        if (timerRef.current) clearInterval(timerRef.current);
-        setRecordedDraft(SAMPLE_VOICE_CHATS[0]);
-      }, 4000);
+  // Stop recording whenever user decides
+  const stopVoiceRecording = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (speechRecognitionRef.current) {
+      try {
+        speechRecognitionRef.current.stop();
+      } catch (e) {}
+    }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    } else {
+      setIsRecording(false);
     }
   };
 
   // Enhance voice note with Gemini AI
   const handleEnhanceWithAi = async (textToEnhance: string) => {
+    if (!textToEnhance.trim()) return;
     setIsAiEnhancing(true);
     try {
       const res = await fetch("/api/ai/enhance-chat", {
@@ -181,7 +284,7 @@ export default function MessagesPage() {
   // Send AI Enhanced Voice Note
   const handleSendEnhancedVoiceNote = async () => {
     const textToSend = enhancedText || recordedDraft;
-    if (!textToSend.trim()) return;
+    if (!textToSend.trim() || sending) return;
 
     setSending(true);
     try {
@@ -227,7 +330,7 @@ export default function MessagesPage() {
                   <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
                   <h2 className="text-[17px] font-semibold text-ink">Live Realtime Chats</h2>
                 </div>
-                <p className="text-[12px] text-ink-secondary">Connected via Firebase RTDB</p>
+                <p className="text-[12px] text-ink-secondary">Synchronized with Firebase Realtime DB</p>
               </div>
 
               <div className="flex-1 overflow-y-auto divide-y divide-line/60">
@@ -342,7 +445,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setShowVoiceModal(true)}
-                  title="Voice note with AI enhancement"
+                  title="Record voice note with user-controlled stop"
                   className="flex size-10 items-center justify-center rounded-full text-ink-secondary hover:text-accent hover:bg-surface transition-colors cursor-pointer"
                 >
                   <Mic className="size-5" />
@@ -369,63 +472,106 @@ export default function MessagesPage() {
         </Container>
       </main>
 
-      {/* AI VOICE NOTE SENDER MODAL */}
+      {/* USER-CONTROLLED VOICE NOTE SENDER MODAL */}
       {showVoiceModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl border border-line bg-white p-6 shadow-float space-y-4">
+          <div className="w-full max-w-lg rounded-3xl border border-line bg-white p-6 sm:p-7 shadow-float space-y-4">
             <div className="flex items-center justify-between border-b border-line pb-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 text-accent" />
                 <h3 className="text-[17px] font-semibold text-ink">
-                  AI Voice Message (صوتی پیغام)
+                  Record Voice Message (صوتی پیغام ریکارڈ کریں)
                 </h3>
               </div>
               <button
                 type="button"
-                onClick={() => setShowVoiceModal(false)}
+                onClick={() => {
+                  stopVoiceRecording();
+                  setShowVoiceModal(false);
+                }}
                 className="text-ink-tertiary hover:text-ink text-[18px] font-bold cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <p className="text-[13px] text-ink-secondary">
-              Record a brief voice note. Gemini AI will refine your spoken words into a polite, professional message ready to send.
+            <p className="text-[13px] text-ink-secondary leading-relaxed">
+              Click the microphone to start speaking. When you are done, click Stop Recording. Your speech will be transcribed and can be refined by Gemini AI before sending.
             </p>
 
-            {/* Mic Button */}
-            <div className="rounded-2xl border border-line bg-surface/50 p-5 flex flex-col items-center justify-center text-center space-y-3">
-              <button
-                type="button"
-                onClick={handleToggleRecord}
-                className={cn(
-                  "flex size-14 items-center justify-center rounded-full transition-all shadow-sm cursor-pointer",
-                  isRecording
-                    ? "bg-danger text-white ring-8 ring-danger/20 animate-pulse"
-                    : "bg-ink text-white hover:bg-black"
-                )}
-              >
-                {isRecording ? <Square className="size-5" /> : <Mic className="size-6" />}
-              </button>
+            {/* User Controlled Recording Controls */}
+            <div className="rounded-2xl border border-line bg-surface/50 p-5 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <button
+                  type="button"
+                  onClick={isRecording ? stopVoiceRecording : startVoiceRecording}
+                  className={cn(
+                    "flex size-14 items-center justify-center rounded-full transition-all shadow-sm cursor-pointer shrink-0",
+                    isRecording
+                      ? "bg-danger text-white ring-8 ring-danger/20 animate-pulse"
+                      : "bg-ink text-white hover:bg-black"
+                  )}
+                >
+                  {isRecording ? <Square className="size-5" /> : <Mic className="size-6" />}
+                </button>
 
-              <div className="text-[14px] font-medium text-ink">
-                {isRecording ? (
-                  <span className="text-danger">Recording... 00:0{recordSeconds}</span>
-                ) : recordedDraft ? (
-                  <span className="text-emerald-700 flex items-center gap-1">
-                    <CheckCircle2 className="size-4" /> Spoken note captured
-                  </span>
-                ) : (
-                  <span>Click mic to speak</span>
-                )}
+                <div>
+                  <div className="text-[15px] font-semibold text-ink">
+                    {isRecording ? (
+                      <span className="text-danger flex items-center gap-2">
+                        <span>Recording in progress...</span>
+                        <span className="font-mono text-[13px]">
+                          00:{recordSeconds < 10 ? `0${recordSeconds}` : recordSeconds}
+                        </span>
+                      </span>
+                    ) : isTranscribing ? (
+                      <span className="text-accent flex items-center gap-2">
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>Transcribing your speech...</span>
+                      </span>
+                    ) : recordedDraft ? (
+                      <span className="text-emerald-700 flex items-center gap-1.5">
+                        <CheckCircle2 className="size-4" /> Spoken voice transcribed
+                      </span>
+                    ) : (
+                      <span>Tap mic to speak</span>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-ink-tertiary mt-0.5">
+                    {isRecording
+                      ? "Speak freely. Click the red button when finished."
+                      : "User controlled recording: talk as long as you want."}
+                  </p>
+                </div>
               </div>
 
-              {isRecording && <Waveform bars={16} active />}
+              {isRecording && (
+                <div className="flex items-center gap-2">
+                  <Waveform bars={16} active />
+                  <button
+                    type="button"
+                    onClick={stopVoiceRecording}
+                    className={buttonStyles({
+                      variant: "dark",
+                      size: "sm",
+                      className: "cursor-pointer whitespace-nowrap bg-danger hover:bg-red-700",
+                    })}
+                  >
+                    Stop Recording
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Quick Sample Voice Drafts */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-medium text-ink-tertiary">Or pick a quick spoken response:</span>
+            {micError && (
+              <div className="rounded-xl bg-danger-tint p-3 text-[12px] text-danger border border-danger/20">
+                {micError}
+              </div>
+            )}
+
+            {/* Quick Sample Voice Prompts for instant testing */}
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[11px] font-medium text-ink-tertiary">Or select a sample voice prompt:</span>
               <div className="flex flex-col gap-1.5">
                 {SAMPLE_VOICE_CHATS.map((sample, idx) => (
                   <button
@@ -435,7 +581,7 @@ export default function MessagesPage() {
                       setRecordedDraft(sample);
                       handleEnhanceWithAi(sample);
                     }}
-                    className="text-left text-[12px] p-2 rounded-xl border border-line bg-white hover:bg-surface text-ink-secondary hover:text-ink cursor-pointer transition-colors"
+                    className="text-left text-[12px] p-2.5 rounded-xl border border-line bg-white hover:bg-surface text-ink-secondary hover:text-ink cursor-pointer transition-colors"
                   >
                     &ldquo;{sample}&rdquo;
                   </button>
@@ -443,41 +589,53 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            {/* Draft / AI Enhanced Preview */}
-            {recordedDraft && (
-              <div className="rounded-2xl border border-line bg-surface/40 p-4 space-y-2">
-                <div className="flex items-center justify-between text-[11px] font-medium text-ink-tertiary">
-                  <span>Captured Draft:</span>
+            {/* Editable Transcribed Draft */}
+            <div>
+              <div className="flex items-center justify-between text-[12px] font-medium text-ink-secondary mb-1">
+                <span>Transcribed Voice Note (Editable):</span>
+                {recordedDraft && (
                   <button
                     type="button"
                     onClick={() => handleEnhanceWithAi(recordedDraft)}
                     disabled={isAiEnhancing}
-                    className="text-accent hover:underline flex items-center gap-1 cursor-pointer"
+                    className="text-accent hover:underline flex items-center gap-1 cursor-pointer text-[11px]"
                   >
                     <Sparkles className="size-3" />
-                    <span>{isAiEnhancing ? "Refining..." : "Refine with Gemini AI"}</span>
+                    <span>{isAiEnhancing ? "Refining with AI..." : "Refine with Gemini AI"}</span>
                   </button>
-                </div>
-
-                <p className="text-[13px] text-ink italic">&ldquo;{recordedDraft}&rdquo;</p>
-
-                {enhancedText && (
-                  <div className="mt-3 pt-3 border-t border-line">
-                    <span className="text-[11px] font-semibold text-emerald-800 uppercase tracking-wider block mb-1">
-                      Gemini AI Enhanced Version:
-                    </span>
-                    <p className="text-[13px] text-ink font-medium leading-relaxed font-urdu">
-                      {enhancedText}
-                    </p>
-                  </div>
                 )}
+              </div>
+              <textarea
+                value={recordedDraft}
+                onChange={(e) => {
+                  setRecordedDraft(e.target.value);
+                  recordedDraftRef.current = e.target.value;
+                }}
+                rows={2}
+                placeholder="What you spoke will appear here, or you can type directly..."
+                className="w-full rounded-xl border border-line bg-surface/30 p-3 text-[13px] text-ink outline-none focus:border-accent focus:bg-white"
+              />
+            </div>
+
+            {/* Enhanced Message Preview */}
+            {enhancedText && (
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3.5 space-y-1">
+                <span className="text-[11px] font-semibold text-emerald-900 uppercase tracking-wider block">
+                  Gemini AI Refined Version:
+                </span>
+                <p className="text-[13px] text-emerald-950 font-medium leading-relaxed font-urdu">
+                  {enhancedText}
+                </p>
               </div>
             )}
 
             <div className="pt-2 flex items-center justify-end gap-2 border-t border-line">
               <button
                 type="button"
-                onClick={() => setShowVoiceModal(false)}
+                onClick={() => {
+                  stopVoiceRecording();
+                  setShowVoiceModal(false);
+                }}
                 className={buttonStyles({ variant: "secondary", size: "sm", className: "cursor-pointer" })}
               >
                 Cancel
@@ -486,7 +644,7 @@ export default function MessagesPage() {
               <button
                 type="button"
                 onClick={handleSendEnhancedVoiceNote}
-                disabled={!recordedDraft && !enhancedText}
+                disabled={!recordedDraft.trim() && !enhancedText.trim()}
                 className={buttonStyles({
                   variant: "dark",
                   size: "sm",

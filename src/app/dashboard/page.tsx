@@ -29,6 +29,7 @@ import {
   Sparkles,
   Volume2,
   MessageSquare,
+  Star,
 } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -112,6 +113,13 @@ export default function DashboardPage() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Complete Contract & Rating State
+  const [ratingJob, setRatingJob] = useState<JobItem | null>(null);
+  const [ratingStars, setRatingStars] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [ratingSuccess, setRatingSuccess] = useState(false);
 
   // Manual/Post Job State
   const [newTrade, setNewTrade] = useState("electrician");
@@ -328,10 +336,44 @@ export default function DashboardPage() {
         body: JSON.stringify({ jobId, status }),
       });
       if (res.ok) {
-        loadJobs();
+        loadJobs(false);
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Submit job completion and rating
+  const handleSubmitJobRating = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ratingJob || !user) return;
+    setSubmittingRating(true);
+    try {
+      const res = await fetch("/api/jobs/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: ratingJob.id,
+          reviewerId: user.uid,
+          rating: ratingStars,
+          comment: ratingComment.trim(),
+        }),
+      });
+
+      if (res.ok) {
+        setRatingSuccess(true);
+        setTimeout(() => {
+          setRatingSuccess(false);
+          setRatingJob(null);
+          setRatingComment("");
+          setRatingStars(5);
+          loadJobs(false);
+        }, 1200);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingRating(false);
     }
   };
 
@@ -711,19 +753,26 @@ export default function DashboardPage() {
                           Mark In Progress
                         </button>
                       )}
-                      {isWorker && job.status === "in_progress" && (
+
+                      {(job.status === "accepted" || job.status === "in_progress") && (
                         <button
                           type="button"
-                          onClick={() => handleUpdateStatus(job.id, "completed")}
-                          className={buttonStyles({ variant: "dark", size: "sm", className: "cursor-pointer" })}
+                          onClick={() => {
+                            setRatingJob(job);
+                            setRatingStars(5);
+                            setRatingComment("");
+                          }}
+                          className={buttonStyles({ variant: "dark", size: "sm", className: "cursor-pointer gap-1.5" })}
                         >
-                          Complete Job / مکمل کریں
+                          <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                          <span>Close & Rate / مکمل کریں</span>
                         </button>
                       )}
+
                       {job.status === "completed" && (
-                        <span className="inline-flex items-center gap-1 text-[13px] font-medium text-emerald-600">
-                          <CheckCircle2 className="size-4" />
-                          <span>Finished</span>
+                        <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/50">
+                          <CheckCircle2 className="size-4 text-emerald-600" />
+                          <span>Closed & Settled / مکمل</span>
                         </span>
                       )}
                     </div>
@@ -998,6 +1047,135 @@ export default function DashboardPage() {
                   </div>
                 </div>
               </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CONTRACT CLOSING & RATING MODAL */}
+      {ratingJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-3xl border border-line bg-white p-7 shadow-float my-8 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-line pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                  <Star className="size-5 fill-amber-500 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-[18px] font-semibold text-ink">
+                    Close Contract & Rate / معاہدہ مکمل کریں
+                  </h3>
+                  <p className="text-[12px] text-ink-secondary">
+                    Review and finalize settlement for this contract
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRatingJob(null)}
+                className="text-ink-tertiary hover:text-ink text-[20px] font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {ratingSuccess ? (
+              <div className="py-12 text-center">
+                <CheckCircle2 className="mx-auto size-14 text-emerald-600 animate-bounce" />
+                <h4 className="mt-3 text-[20px] font-semibold text-ink">Contract Closed Successfully!</h4>
+                <p className="mt-1 text-[14px] text-ink-secondary">
+                  Your rating and feedback have been published to the profile.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitJobRating} className="mt-5 space-y-5">
+                <div className="rounded-2xl border border-line bg-surface/40 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary">
+                    Contract Title
+                  </div>
+                  <div className="mt-0.5 text-[15px] font-semibold text-ink">
+                    {ratingJob.title}
+                  </div>
+                  <div className="mt-1 flex items-center gap-3 text-[12px] text-ink-secondary">
+                    <span>Sector: {ratingJob.sector || "Islamabad"}</span>
+                    <span>•</span>
+                    <span>Budget: PKR {ratingJob.budget?.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-medium text-ink mb-2">
+                    {isWorker ? "Rate this Client (کسٹمر کو ریٹ کریں)" : "Rate the Worker's Craftsmanship (کاریگر کا جائزہ لیں)"}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingStars(star)}
+                        className="p-1 rounded-lg hover:scale-110 transition-transform cursor-pointer"
+                      >
+                        <Star
+                          className={cn(
+                            "size-8 transition-colors",
+                            star <= ratingStars
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-ink-tertiary/40"
+                          )}
+                        />
+                      </button>
+                    ))}
+                    <span className="ml-2 text-[15px] font-semibold text-ink">
+                      {ratingStars}.0 / 5.0
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-medium text-ink mb-1.5">
+                    Written Feedback & Experience (تفصیلی تاثرات)
+                  </label>
+                  <textarea
+                    value={ratingComment}
+                    onChange={(e) => setRatingComment(e.target.value)}
+                    rows={3}
+                    placeholder={
+                      isWorker
+                        ? "Was the client prompt, clear with requirements, and accommodating?"
+                        : "How was the punctuality, cleanliness, quality of work, and professionalism?"
+                    }
+                    className="w-full rounded-2xl border border-line bg-surface/30 p-3.5 text-[14px] text-ink outline-none focus:border-accent focus:bg-white resize-none"
+                  />
+                </div>
+
+                <div className="pt-3 flex items-center justify-end gap-3 border-t border-line">
+                  <button
+                    type="button"
+                    onClick={() => setRatingJob(null)}
+                    className={buttonStyles({ variant: "secondary", size: "md", className: "cursor-pointer" })}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingRating}
+                    className={buttonStyles({
+                      variant: "dark",
+                      size: "md",
+                      className: "cursor-pointer disabled:opacity-50",
+                    })}
+                  >
+                    {submittingRating ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>Submitting Rating...</span>
+                      </>
+                    ) : (
+                      <span>Complete & Submit Rating</span>
+                    )}
+                  </button>
+                </div>
+              </form>
             )}
           </div>
         </div>

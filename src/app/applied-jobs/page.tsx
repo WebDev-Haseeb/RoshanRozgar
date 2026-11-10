@@ -10,6 +10,8 @@ import {
   Banknote,
   Loader2,
   AlertCircle,
+  Star,
+  MessageSquare,
 } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { SiteHeader } from "@/components/layout/site-header";
@@ -23,6 +25,13 @@ export default function AppliedJobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+
+  // Complete Contract & Rating State
+  const [ratingJob, setRatingJob] = useState<any | null>(null);
+  const [ratingStars, setRatingStars] = useState(5);
+  const [ratingComment, setRatingComment] = useState("");
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [ratingSuccess, setRatingSuccess] = useState(false);
 
   const loadMyJobs = async (silent = false) => {
     if (!user) return;
@@ -56,10 +65,43 @@ export default function AppliedJobsPage() {
         body: JSON.stringify({ jobId, status }),
       });
       if (res.ok) {
-        loadMyJobs();
+        loadMyJobs(true);
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleSubmitJobRating = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ratingJob || !user) return;
+    setSubmittingRating(true);
+    try {
+      const res = await fetch("/api/jobs/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId: ratingJob.id,
+          reviewerId: user.uid,
+          rating: ratingStars,
+          comment: ratingComment.trim(),
+        }),
+      });
+
+      if (res.ok) {
+        setRatingSuccess(true);
+        setTimeout(() => {
+          setRatingSuccess(false);
+          setRatingJob(null);
+          setRatingComment("");
+          setRatingStars(5);
+          loadMyJobs(true);
+        }, 1200);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSubmittingRating(false);
     }
   };
 
@@ -174,27 +216,43 @@ export default function AppliedJobsPage() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <Link
+                      href="/messages"
+                      className={buttonStyles({ variant: "secondary", size: "sm", className: "cursor-pointer" })}
+                    >
+                      <MessageSquare className="size-3.5 text-accent" />
+                      <span>Chat</span>
+                    </Link>
+
                     {job.status === "accepted" && (
                       <button
                         type="button"
                         onClick={() => handleUpdateStatus(job.id, "in_progress")}
-                        className={buttonStyles({ variant: "secondary", size: "sm" })}
+                        className={buttonStyles({ variant: "secondary", size: "sm", className: "cursor-pointer" })}
                       >
                         Mark In Progress
                       </button>
                     )}
-                    {job.status === "in_progress" && (
+
+                    {(job.status === "accepted" || job.status === "in_progress") && (
                       <button
                         type="button"
-                        onClick={() => handleUpdateStatus(job.id, "completed")}
-                        className={buttonStyles({ variant: "dark", size: "sm" })}
+                        onClick={() => {
+                          setRatingJob(job);
+                          setRatingStars(5);
+                          setRatingComment("");
+                        }}
+                        className={buttonStyles({ variant: "dark", size: "sm", className: "cursor-pointer gap-1.5" })}
                       >
-                        Complete Work / کام مکمل
+                        <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                        <span>Close & Rate Client / مکمل کریں</span>
                       </button>
                     )}
+
                     {job.status === "completed" && (
-                      <span className="inline-flex items-center gap-1 text-[13px] font-medium text-emerald-600">
-                        <CheckCircle2 className="size-4" /> Finished & Settled
+                      <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/50">
+                        <CheckCircle2 className="size-4 text-emerald-600" />
+                        <span>Finished & Settled / کام مکمل</span>
                       </span>
                     )}
                   </div>
@@ -204,6 +262,131 @@ export default function AppliedJobsPage() {
           )}
         </Container>
       </main>
+
+      {/* CONTRACT CLOSING & RATING MODAL */}
+      {ratingJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="w-full max-w-lg rounded-3xl border border-line bg-white p-7 shadow-float my-8 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-line pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="flex size-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                  <Star className="size-5 fill-amber-500 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-[18px] font-semibold text-ink">
+                    Close Contract & Rate Client / معاہدہ مکمل کریں
+                  </h3>
+                  <p className="text-[12px] text-ink-secondary">
+                    Review and finalize settlement for this contract
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRatingJob(null)}
+                className="text-ink-tertiary hover:text-ink text-[20px] font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {ratingSuccess ? (
+              <div className="py-12 text-center">
+                <CheckCircle2 className="mx-auto size-14 text-emerald-600 animate-bounce" />
+                <h4 className="mt-3 text-[20px] font-semibold text-ink">Contract Closed Successfully!</h4>
+                <p className="mt-1 text-[14px] text-ink-secondary">
+                  Your rating and feedback have been published.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitJobRating} className="mt-5 space-y-5">
+                <div className="rounded-2xl border border-line bg-surface/40 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-ink-tertiary">
+                    Contract Title
+                  </div>
+                  <div className="mt-0.5 text-[15px] font-semibold text-ink">
+                    {ratingJob.title}
+                  </div>
+                  <div className="mt-1 flex items-center gap-3 text-[12px] text-ink-secondary">
+                    <span>Sector: {ratingJob.sector || "Islamabad"}</span>
+                    <span>•</span>
+                    <span>Budget: PKR {ratingJob.budget?.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-medium text-ink mb-2">
+                    Rate this Client (کسٹمر کو ریٹ کریں)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        type="button"
+                        onClick={() => setRatingStars(star)}
+                        className="p-1 rounded-lg hover:scale-110 transition-transform cursor-pointer"
+                      >
+                        <Star
+                          className={cn(
+                            "size-8 transition-colors",
+                            star <= ratingStars
+                              ? "fill-amber-400 text-amber-400"
+                              : "text-ink-tertiary/40"
+                          )}
+                        />
+                      </button>
+                    ))}
+                    <span className="ml-2 text-[15px] font-semibold text-ink">
+                      {ratingStars}.0 / 5.0
+                    </span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[13px] font-medium text-ink mb-1.5">
+                    Written Feedback (تفصیلی تاثرات)
+                  </label>
+                  <textarea
+                    value={ratingComment}
+                    onChange={(e) => setRatingComment(e.target.value)}
+                    rows={3}
+                    placeholder="Was the client prompt, clear with requirements, and accommodating?"
+                    className="w-full rounded-2xl border border-line bg-surface/30 p-3.5 text-[14px] text-ink outline-none focus:border-accent focus:bg-white resize-none"
+                  />
+                </div>
+
+                <div className="pt-3 flex items-center justify-end gap-3 border-t border-line">
+                  <button
+                    type="button"
+                    onClick={() => setRatingJob(null)}
+                    className={buttonStyles({ variant: "secondary", size: "md", className: "cursor-pointer" })}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submittingRating}
+                    className={buttonStyles({
+                      variant: "dark",
+                      size: "md",
+                      className: "cursor-pointer disabled:opacity-50",
+                    })}
+                  >
+                    {submittingRating ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>Submitting Rating...</span>
+                      </>
+                    ) : (
+                      <span>Complete & Submit Rating</span>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       <SiteFooter />
     </div>
