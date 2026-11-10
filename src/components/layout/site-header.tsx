@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, X, User as UserIcon, LogOut } from "lucide-react";
+import { Menu, X, LayoutDashboard, LogOut } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Container } from "@/components/ui/container";
 import { buttonStyles } from "@/components/ui/button";
@@ -44,10 +44,18 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-4 md:flex">
+        <div className="hidden items-center gap-3 md:flex">
           {!loading && user ? (
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 text-[13px] font-medium text-ink">
+            <div className="flex items-center gap-2.5">
+              <Link
+                href="/dashboard"
+                className={buttonStyles({ variant: "dark", size: "sm" })}
+              >
+                <LayoutDashboard className="size-3.5" />
+                <span>Dashboard</span>
+              </Link>
+
+              <div className="flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1 text-[13px] font-medium text-ink">
                 <span className="flex size-6 items-center justify-center rounded-full bg-accent/15 text-accent text-[11px] font-semibold">
                   {user.displayName
                     ? user.displayName.charAt(0).toUpperCase()
@@ -62,14 +70,14 @@ export function SiteHeader() {
                   </span>
                 )}
               </div>
+
               <button
                 type="button"
                 onClick={() => logOut()}
                 title="Sign out"
-                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-secondary hover:text-danger transition-colors"
+                className="inline-flex size-8 items-center justify-center rounded-full text-ink-secondary hover:text-danger hover:bg-surface transition-colors"
               >
                 <LogOut className="size-4" />
-                <span>Sign out</span>
               </button>
             </div>
           ) : (
@@ -123,6 +131,14 @@ export function SiteHeader() {
           <div className="mt-auto grid gap-3">
             {!loading && user ? (
               <div className="grid gap-2">
+                <Link
+                  href="/dashboard"
+                  onClick={() => setOpen(false)}
+                  className={buttonStyles({ variant: "dark", size: "lg", className: "w-full" })}
+                >
+                  <LayoutDashboard className="size-4" />
+                  <span>Go to Dashboard</span>
+                </Link>
                 <div className="rounded-2xl border border-line bg-surface p-4 text-[14px] text-ink">
                   <div className="font-semibold">{user.displayName || user.email}</div>
                   <div className="text-[12px] text-ink-secondary">{user.email}</div>

@@ -37,10 +37,10 @@ function LoginForm() {
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If already logged in, redirect to home
+  // If already logged in, redirect to dashboard
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/");
+      router.push("/dashboard");
     }
   }, [user, authLoading, router]);
 
@@ -56,7 +56,7 @@ function LoginForm() {
     try {
       setSubmitting(true);
       await signInWithEmail(email.trim(), password);
-      router.push("/");
+      router.push("/dashboard");
     } catch (err: any) {
       console.error("Login error:", err);
       const code = err.code || "";
@@ -79,7 +79,7 @@ function LoginForm() {
     try {
       setGoogleSubmitting(true);
       await signInWithGoogle(role);
-      router.push("/");
+      router.push("/dashboard");
     } catch (err: any) {
       console.error("Google sign in error:", err);
       if (err.code !== "auth/popup-closed-by-user") {

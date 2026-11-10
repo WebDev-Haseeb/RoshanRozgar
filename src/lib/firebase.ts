@@ -9,7 +9,7 @@ import {
   updateProfile,
   Auth,
 } from "firebase/auth";
-import { getDatabase, ref, set, get, Database } from "firebase/database";
+import { getDatabase, Database } from "firebase/database";
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyAf5tOrB2-HzkO7vNozlNXjdNuxHwjQZo8",
@@ -40,37 +40,48 @@ export interface UserProfileData {
   role: "customer" | "worker";
   trade?: string | null;
   sector?: string | null;
+  phone?: string | null;
+  isVerified?: boolean;
+  rating?: number;
+  jobsCompleted?: number;
   createdAt: number;
 }
 
 /**
- * Persist user role and metadata to Firebase Realtime Database
+ * Persist user profile and metadata to Supabase Postgres via /api/profile
  */
-export async function saveUserProfile(data: UserProfileData) {
+export async function saveUserProfile(data: UserProfileData): Promise<UserProfileData | null> {
   try {
-    const userRef = ref(rtdb, `users/${data.uid}`);
-    await set(userRef, {
-      ...data,
-      updatedAt: Date.now(),
+    const res = await fetch("/api/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
     });
+    if (!res.ok) {
+      console.warn("Failed to persist user profile to Supabase:", await res.text());
+      return null;
+    }
+    const json = await res.json();
+    return json.profile || null;
   } catch (err) {
-    console.error("Failed to save user profile to RTDB:", err);
+    console.error("Error calling /api/profile:", err);
+    return null;
   }
 }
 
 /**
- * Fetch user profile from Firebase Realtime Database
+ * Fetch user profile from Supabase Postgres via /api/profile
  */
 export async function getUserProfile(uid: string): Promise<UserProfileData | null> {
   try {
-    const userRef = ref(rtdb, `users/${uid}`);
-    const snapshot = await get(userRef);
-    if (snapshot.exists()) {
-      return snapshot.val() as UserProfileData;
+    const res = await fetch(`/api/profile?uid=${encodeURIComponent(uid)}`);
+    if (!res.ok) {
+      return null;
     }
-    return null;
+    const json = await res.json();
+    return json.profile || null;
   } catch (err) {
-    console.error("Failed to get user profile from RTDB:", err);
+    console.error("Error fetching /api/profile:", err);
     return null;
   }
 }

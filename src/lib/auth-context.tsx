@@ -10,7 +10,7 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { auth, googleProvider, rtdb, saveUserProfile, getUserProfile, UserProfileData } from "./firebase";
+import { auth, googleProvider, saveUserProfile, getUserProfile, UserProfileData } from "./firebase";
 
 interface AuthContextType {
   user: User | null;
@@ -26,6 +26,7 @@ interface AuthContextType {
     trade?: string,
     sector?: string
   ) => Promise<User>;
+  refreshProfile: () => Promise<void>;
   logOut: () => Promise<void>;
 }
 
@@ -42,6 +43,7 @@ const AuthContext = createContext<AuthContextType>({
   signUpWithEmail: async () => {
     throw new Error("AuthProvider not mounted");
   },
+  refreshProfile: async () => {},
   logOut: async () => {},
 });
 
@@ -50,12 +52,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchProfile = async (uid: string) => {
+    try {
+      const p = await getUserProfile(uid);
+      setProfile(p);
+      return p;
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        const p = await getUserProfile(currentUser.uid);
-        setProfile(p);
+        await fetchProfile(currentUser.uid);
       } else {
         setProfile(null);
       }
@@ -67,26 +78,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleGoogleSignIn = async (preferredRole: "customer" | "worker" = "customer") => {
     const cred = await signInWithPopup(auth, googleProvider);
-    let existingProfile = await getUserProfile(cred.user.uid);
-    if (!existingProfile) {
-      existingProfile = {
+    let existing = await getUserProfile(cred.user.uid);
+    if (!existing) {
+      existing = await saveUserProfile({
         uid: cred.user.uid,
         email: cred.user.email,
         displayName: cred.user.displayName,
         photoURL: cred.user.photoURL,
         role: preferredRole,
         createdAt: Date.now(),
-      };
-      await saveUserProfile(existingProfile);
+      });
     }
-    setProfile(existingProfile);
-    return { user: cred.user, profile: existingProfile };
+    setProfile(existing);
+    return { user: cred.user, profile: existing };
   };
 
   const handleEmailSignIn = async (email: string, pass: string) => {
-    const cred = await signInWithEmailAndPassword(auth, email, pass);
-    const existingProfile = await getUserProfile(cred.user.uid);
-    setProfile(existingProfile);
+    const cleanEmail = email.trim().toLowerCase();
+    const cred = await signInWithEmailAndPassword(auth, cleanEmail, pass);
+    await fetchProfile(cred.user.uid);
     return cred.user;
   };
 
@@ -98,22 +108,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     trade?: string,
     sector?: string
   ) => {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    const cleanEmail = email.trim().toLowerCase();
+    const cred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
     if (displayName) {
-      await updateProfile(cred.user, { displayName });
+      try {
+        await updateProfile(cred.user, { displayName });
+      } catch (e) {
+        console.warn("Could not set displayName on Firebase Auth user:", e);
+      }
     }
-    const newProfile: UserProfileData = {
+    const saved = await saveUserProfile({
       uid: cred.user.uid,
-      email: cred.user.email,
+      email: cleanEmail,
       displayName,
       role,
       trade: trade || null,
       sector: sector || null,
       createdAt: Date.now(),
-    };
-    await saveUserProfile(newProfile);
-    setProfile(newProfile);
+    });
+    setProfile(saved);
     return cred.user;
+  };
+
+  const refreshProfile = async () => {
+    if (user) {
+      await fetchProfile(user.uid);
+    }
   };
 
   const handleSignOut = async () => {
@@ -131,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithGoogle: handleGoogleSignIn,
         signInWithEmail: handleEmailSignIn,
         signUpWithEmail: handleEmailSignUp,
+        refreshProfile,
         logOut: handleSignOut,
       }}
     >

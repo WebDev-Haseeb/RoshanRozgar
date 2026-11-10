@@ -70,10 +70,10 @@ function SignupForm() {
   const [googleSubmitting, setGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If already logged in, redirect to home
+  // If already logged in, redirect to dashboard
   useEffect(() => {
     if (!authLoading && user) {
-      router.push("/");
+      router.push("/dashboard");
     }
   }, [user, authLoading, router]);
 
@@ -81,12 +81,17 @@ function SignupForm() {
     e.preventDefault();
     setError(null);
 
+    const cleanEmail = email.trim();
     if (!name.trim()) {
       setError("Please enter your name.");
       return;
     }
-    if (!email.trim() || !password) {
+    if (!cleanEmail || !password) {
       setError("Please enter your email and password.");
+      return;
+    }
+    if (!cleanEmail.includes("@") || !cleanEmail.includes(".")) {
+      setError("Please enter a valid email address (e.g. name@domain.com).");
       return;
     }
     if (password.length < 6) {
@@ -97,14 +102,14 @@ function SignupForm() {
     try {
       setSubmitting(true);
       await signUpWithEmail(
-        email.trim(),
+        cleanEmail,
         password,
         name.trim(),
         role,
         role === "worker" ? selectedTrade : undefined,
         sector
       );
-      router.push("/");
+      router.push("/dashboard");
     } catch (err: any) {
       console.error("Signup error:", err);
       const code = err.code || "";
@@ -127,7 +132,7 @@ function SignupForm() {
     try {
       setGoogleSubmitting(true);
       await signInWithGoogle(role);
-      router.push("/");
+      router.push("/dashboard");
     } catch (err: any) {
       console.error("Google signup error:", err);
       if (err.code !== "auth/popup-closed-by-user") {
