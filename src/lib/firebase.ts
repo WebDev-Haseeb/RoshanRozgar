@@ -44,13 +44,19 @@ export interface UserProfileData {
   isVerified?: boolean;
   rating?: number;
   jobsCompleted?: number;
-  createdAt: number;
+  bioUrdu?: string | null;
+  bioEnglish?: string | null;
+  tagline?: string | null;
+  skills?: string[];
+  experienceYears?: number | null;
+  voiceNoteTranscript?: string | null;
+  createdAt?: number;
 }
 
 /**
  * Persist user profile and metadata to Supabase Postgres via /api/profile
  */
-export async function saveUserProfile(data: UserProfileData): Promise<UserProfileData | null> {
+export async function saveUserProfile(data: Partial<UserProfileData> & { uid: string }): Promise<UserProfileData | null> {
   try {
     const res = await fetch("/api/profile", {
       method: "POST",

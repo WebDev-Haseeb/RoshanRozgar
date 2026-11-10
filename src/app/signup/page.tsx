@@ -106,7 +106,7 @@ function SignupForm() {
         password,
         name.trim(),
         role,
-        role === "worker" ? selectedTrade : undefined,
+        selectedTrade,
         sector
       );
       router.push("/dashboard");
@@ -131,7 +131,7 @@ function SignupForm() {
     setError(null);
     try {
       setGoogleSubmitting(true);
-      await signInWithGoogle(role);
+      await signInWithGoogle(role, selectedTrade, sector);
       router.push("/dashboard");
     } catch (err: any) {
       console.error("Google signup error:", err);
@@ -167,7 +167,7 @@ function SignupForm() {
 
       {/* Main Signup Form */}
       <main className="flex flex-1 items-center justify-center py-12 px-4 sm:px-6">
-        <div className="w-full max-w-[500px]">
+        <div className="w-full max-w-[520px]">
           <div className="rounded-3xl border border-line bg-white p-7 sm:p-9 shadow-card">
             {/* Header info */}
             <div className="text-center">
@@ -215,21 +215,75 @@ function SignupForm() {
               </button>
             </div>
 
+            {/* MANDATORY CATEGORY & LOCATION (NON-NEGOTIABLE FOR BOTH GOOGLE & EMAIL) */}
+            <div className="mt-6 rounded-2xl bg-surface/60 border border-line p-4 space-y-4">
+              <div>
+                <label className="block text-[12px] font-semibold text-ink uppercase tracking-wider mb-2">
+                  {role === "worker"
+                    ? "آپ کا ہنر اور پیشہ (Select Your Trade · Non-Negotiable)"
+                    : "Primary Service Need (Select Category · Non-Negotiable)"}
+                </label>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {TRADES.map((trade) => {
+                    const Icon = trade.icon;
+                    const isSelected = selectedTrade === trade.id;
+                    return (
+                      <button
+                        key={trade.id}
+                        type="button"
+                        onClick={() => setSelectedTrade(trade.id)}
+                        className={cn(
+                          "flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all",
+                          isSelected
+                            ? "border-accent bg-white shadow-sm ring-1 ring-accent"
+                            : "border-line bg-white/70 hover:bg-white text-ink-secondary"
+                        )}
+                      >
+                        <Icon className={cn("size-4 mb-1", isSelected ? "text-accent" : "text-ink-secondary")} />
+                        <span className="text-[12px] font-medium text-ink">{trade.name}</span>
+                        <span className="text-[10px] text-ink-tertiary font-urdu">{trade.urdu}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[12px] font-semibold text-ink uppercase tracking-wider mb-1.5">
+                  {role === "worker" ? "علاقہ (Operating Sector · Non-Negotiable)" : "Your Location (Sector · Non-Negotiable)"}
+                </label>
+                <div className="relative rounded-xl border border-line bg-white focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/10 transition-all">
+                  <MapPin className="absolute left-3.5 top-3.5 size-4 text-ink-tertiary" />
+                  <select
+                    value={sector}
+                    onChange={(e) => setSector(e.target.value)}
+                    className="w-full appearance-none bg-transparent pl-10 pr-8 py-2.5 text-[14px] text-ink outline-none"
+                  >
+                    {SECTORS.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {/* Error banner */}
             {error && (
-              <div className="mt-5 flex items-start gap-2.5 rounded-2xl bg-danger-tint border border-danger/20 p-3.5 text-[13px] text-danger">
+              <div className="mt-4 flex items-start gap-2.5 rounded-2xl bg-danger-tint border border-danger/20 p-3.5 text-[13px] text-danger">
                 <AlertCircle className="size-4 shrink-0 mt-0.5" />
                 <span className="leading-snug">{error}</span>
               </div>
             )}
 
-            {/* Google Fast Sign Up */}
-            <div className="mt-6">
+            {/* Google Fast Sign Up (Captures the chosen category and sector) */}
+            <div className="mt-5">
               <button
                 type="button"
                 onClick={handleGoogleSignup}
                 disabled={googleSubmitting || submitting}
-                className="w-full flex h-12 items-center justify-center gap-3 rounded-full border border-line bg-surface/40 hover:bg-surface text-[14px] font-medium text-ink transition-colors disabled:opacity-60"
+                className="w-full flex h-12 items-center justify-center gap-3 rounded-full border border-line bg-surface/40 hover:bg-surface text-[14px] font-medium text-ink transition-colors disabled:opacity-60 shadow-sm"
               >
                 {googleSubmitting ? (
                   <Loader2 className="size-4 animate-spin text-ink-secondary" />
@@ -258,48 +312,16 @@ function SignupForm() {
             </div>
 
             {/* Apple Divider */}
-            <div className="relative my-6 text-center">
+            <div className="relative my-5 text-center">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-line" />
               </div>
               <span className="relative bg-white px-3 text-[12px] font-medium text-ink-tertiary">
-                or continue with email
+                or sign up with email
               </span>
             </div>
 
             <form onSubmit={handleEmailSignup} className="space-y-4">
-              {/* If worker: Trade picker */}
-              {role === "worker" && (
-                <div>
-                  <label className="block text-[12px] font-semibold text-ink uppercase tracking-wider mb-2">
-                    آپ کا ہنر اور پیشہ (Select Your Trade)
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                    {TRADES.map((trade) => {
-                      const Icon = trade.icon;
-                      const isSelected = selectedTrade === trade.id;
-                      return (
-                        <button
-                          key={trade.id}
-                          type="button"
-                          onClick={() => setSelectedTrade(trade.id)}
-                          className={cn(
-                            "flex flex-col items-center justify-center p-2.5 rounded-2xl border text-center transition-all",
-                            isSelected
-                              ? "border-accent bg-accent-tint/40 ring-1 ring-accent"
-                              : "border-line bg-surface/30 hover:bg-surface/80"
-                          )}
-                        >
-                          <Icon className={cn("size-4 mb-1", isSelected ? "text-accent" : "text-ink-secondary")} />
-                          <span className="text-[12px] font-medium text-ink">{trade.name}</span>
-                          <span className="text-[11px] text-ink-tertiary font-urdu">{trade.urdu}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
               {/* Full Name */}
               <div>
                 <label className="block text-[12px] font-medium text-ink-secondary mb-1.5">
@@ -313,7 +335,7 @@ function SignupForm() {
                     onChange={(e) => setName(e.target.value)}
                     placeholder={role === "worker" ? "مثال: اعجاز احمد" : "e.g. Asad Farooq"}
                     required
-                    className="w-full bg-transparent pl-10 pr-4 py-3 text-[14px] text-ink placeholder:text-ink-tertiary outline-none"
+                    className="w-full bg-transparent pl-10 pr-4 py-2.5 text-[14px] text-ink placeholder:text-ink-tertiary outline-none"
                   />
                 </div>
               </div>
@@ -331,29 +353,8 @@ function SignupForm() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@domain.com"
                     required
-                    className="w-full bg-transparent pl-10 pr-4 py-3 text-[14px] text-ink placeholder:text-ink-tertiary outline-none"
+                    className="w-full bg-transparent pl-10 pr-4 py-2.5 text-[14px] text-ink placeholder:text-ink-tertiary outline-none"
                   />
-                </div>
-              </div>
-
-              {/* Primary Sector */}
-              <div>
-                <label className="block text-[12px] font-medium text-ink-secondary mb-1.5">
-                  {role === "worker" ? "علاقہ (Operating Sector)" : "Your City & Sector"}
-                </label>
-                <div className="relative rounded-xl border border-line bg-surface/40 focus-within:bg-white focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/10 transition-all">
-                  <MapPin className="absolute left-3.5 top-3.5 size-4 text-ink-tertiary" />
-                  <select
-                    value={sector}
-                    onChange={(e) => setSector(e.target.value)}
-                    className="w-full appearance-none bg-transparent pl-10 pr-8 py-3 text-[14px] text-ink outline-none"
-                  >
-                    {SECTORS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
                 </div>
               </div>
 
@@ -371,12 +372,12 @@ function SignupForm() {
                     placeholder="At least 6 characters"
                     required
                     minLength={6}
-                    className="w-full bg-transparent pl-10 pr-10 py-3 text-[14px] text-ink placeholder:text-ink-tertiary outline-none"
+                    className="w-full bg-transparent pl-10 pr-10 py-2.5 text-[14px] text-ink placeholder:text-ink-tertiary outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3.5 top-3.5 text-ink-tertiary hover:text-ink"
+                    className="absolute right-3.5 top-3 text-ink-tertiary hover:text-ink"
                     aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
@@ -385,7 +386,7 @@ function SignupForm() {
               </div>
 
               {/* Terms Checkbox */}
-              <div className="pt-2">
+              <div className="pt-1">
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -398,7 +399,7 @@ function SignupForm() {
                     <Link href="/terms" className="font-medium text-link hover:underline">
                       Terms of Service
                     </Link>{" "}
-                    and acknowledge the{" "}
+                    and{" "}
                     <Link href="/privacy" className="font-medium text-link hover:underline">
                       Privacy Policy
                     </Link>
@@ -432,7 +433,7 @@ function SignupForm() {
             </form>
 
             {/* Footer switcher */}
-            <div className="mt-8 border-t border-line/80 pt-5 text-center text-[13px] text-ink-secondary">
+            <div className="mt-7 border-t border-line/80 pt-4 text-center text-[13px] text-ink-secondary">
               Already have an account?{" "}
               <Link
                 href="/login"

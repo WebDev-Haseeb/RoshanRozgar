@@ -16,7 +16,11 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfileData | null;
   loading: boolean;
-  signInWithGoogle: (preferredRole?: "customer" | "worker") => Promise<{ user: User; profile: UserProfileData | null }>;
+  signInWithGoogle: (
+    preferredRole?: "customer" | "worker",
+    preferredTrade?: string,
+    preferredSector?: string
+  ) => Promise<{ user: User; profile: UserProfileData | null }>;
   signInWithEmail: (email: string, pass: string) => Promise<User>;
   signUpWithEmail: (
     email: string,
@@ -26,6 +30,7 @@ interface AuthContextType {
     trade?: string,
     sector?: string
   ) => Promise<User>;
+  updateUserBioProfile: (data: Partial<UserProfileData>) => Promise<UserProfileData | null>;
   refreshProfile: () => Promise<void>;
   logOut: () => Promise<void>;
 }
@@ -43,6 +48,7 @@ const AuthContext = createContext<AuthContextType>({
   signUpWithEmail: async () => {
     throw new Error("AuthProvider not mounted");
   },
+  updateUserBioProfile: async () => null,
   refreshProfile: async () => {},
   logOut: async () => {},
 });
@@ -76,19 +82,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const handleGoogleSignIn = async (preferredRole: "customer" | "worker" = "customer") => {
+  const handleGoogleSignIn = async (
+    preferredRole: "customer" | "worker" = "customer",
+    preferredTrade: string = "electrician",
+    preferredSector: string = "Islamabad · G-9 / G-10 / G-11"
+  ) => {
     const cred = await signInWithPopup(auth, googleProvider);
     let existing = await getUserProfile(cred.user.uid);
-    if (!existing) {
+
+    if (!existing || !existing.trade || !existing.sector) {
       existing = await saveUserProfile({
         uid: cred.user.uid,
         email: cred.user.email,
         displayName: cred.user.displayName,
         photoURL: cred.user.photoURL,
-        role: preferredRole,
-        createdAt: Date.now(),
+        role: existing?.role || preferredRole,
+        trade: existing?.trade || preferredTrade,
+        sector: existing?.sector || preferredSector,
+        createdAt: existing?.createdAt || Date.now(),
       });
     }
+
     setProfile(existing);
     return { user: cred.user, profile: existing };
   };
@@ -122,12 +136,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: cleanEmail,
       displayName,
       role,
-      trade: trade || null,
-      sector: sector || null,
+      trade: trade || "electrician",
+      sector: sector || "Islamabad · G-9 / G-10 / G-11",
       createdAt: Date.now(),
     });
     setProfile(saved);
     return cred.user;
+  };
+
+  const updateUserBioProfile = async (data: Partial<UserProfileData>) => {
+    if (!user) return null;
+    const updated = await saveUserProfile({
+      ...data,
+      uid: user.uid,
+    });
+    if (updated) {
+      setProfile(updated);
+    }
+    return updated;
   };
 
   const refreshProfile = async () => {
@@ -151,6 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithGoogle: handleGoogleSignIn,
         signInWithEmail: handleEmailSignIn,
         signUpWithEmail: handleEmailSignUp,
+        updateUserBioProfile,
         refreshProfile,
         logOut: handleSignOut,
       }}

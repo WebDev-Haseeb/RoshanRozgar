@@ -11,7 +11,9 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await queryDb<any>(
-      `SELECT id, email, display_name, role, trade, sector, phone, photo_url, is_verified, rating, jobs_completed, created_at, updated_at
+      `SELECT id, email, display_name, role, trade, sector, phone, photo_url, 
+              is_verified, rating, jobs_completed, bio_urdu, bio_english, tagline, 
+              skills, experience_years, voice_note_transcript, created_at, updated_at
        FROM users 
        WHERE id = $1 
        LIMIT 1`,
@@ -36,6 +38,12 @@ export async function GET(req: NextRequest) {
         isVerified: row.is_verified,
         rating: Number(row.rating),
         jobsCompleted: row.jobs_completed,
+        bioUrdu: row.bio_urdu,
+        bioEnglish: row.bio_english,
+        tagline: row.tagline,
+        skills: row.skills || [],
+        experienceYears: row.experience_years,
+        voiceNoteTranscript: row.voice_note_transcript,
         createdAt: new Date(row.created_at).getTime(),
       },
     });
@@ -48,7 +56,22 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { uid, email, displayName, role, trade, sector, phone, photoURL } = body;
+    const {
+      uid,
+      email,
+      displayName,
+      role,
+      trade,
+      sector,
+      phone,
+      photoURL,
+      bioUrdu,
+      bioEnglish,
+      tagline,
+      skills,
+      experienceYears,
+      voiceNoteTranscript,
+    } = body;
 
     if (!uid) {
       return NextResponse.json({ error: "Missing uid" }, { status: 400 });
@@ -57,8 +80,11 @@ export async function POST(req: NextRequest) {
     const cleanRole = role === "worker" ? "worker" : "customer";
 
     const query = `
-      INSERT INTO users (id, email, display_name, role, trade, sector, phone, photo_url, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      INSERT INTO users (
+        id, email, display_name, role, trade, sector, phone, photo_url,
+        bio_urdu, bio_english, tagline, skills, experience_years, voice_note_transcript, updated_at
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
       ON CONFLICT (id) DO UPDATE SET
         email = COALESCE(EXCLUDED.email, users.email),
         display_name = COALESCE(EXCLUDED.display_name, users.display_name),
@@ -67,6 +93,12 @@ export async function POST(req: NextRequest) {
         sector = COALESCE(EXCLUDED.sector, users.sector),
         phone = COALESCE(EXCLUDED.phone, users.phone),
         photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
+        bio_urdu = COALESCE(EXCLUDED.bio_urdu, users.bio_urdu),
+        bio_english = COALESCE(EXCLUDED.bio_english, users.bio_english),
+        tagline = COALESCE(EXCLUDED.tagline, users.tagline),
+        skills = COALESCE(EXCLUDED.skills, users.skills),
+        experience_years = COALESCE(EXCLUDED.experience_years, users.experience_years),
+        voice_note_transcript = COALESCE(EXCLUDED.voice_note_transcript, users.voice_note_transcript),
         updated_at = NOW()
       RETURNING *;
     `;
@@ -80,6 +112,12 @@ export async function POST(req: NextRequest) {
       sector || null,
       phone || null,
       photoURL || null,
+      bioUrdu || null,
+      bioEnglish || null,
+      tagline || null,
+      skills || null,
+      experienceYears || null,
+      voiceNoteTranscript || null,
     ]);
 
     const row = rows[0];
@@ -98,6 +136,12 @@ export async function POST(req: NextRequest) {
         isVerified: row.is_verified,
         rating: Number(row.rating),
         jobsCompleted: row.jobs_completed,
+        bioUrdu: row.bio_urdu,
+        bioEnglish: row.bio_english,
+        tagline: row.tagline,
+        skills: row.skills || [],
+        experienceYears: row.experience_years,
+        voiceNoteTranscript: row.voice_note_transcript,
         createdAt: new Date(row.created_at).getTime(),
       },
     });

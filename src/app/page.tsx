@@ -1,3 +1,8 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 import { SiteHeader } from "@/components/layout/site-header";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { Hero } from "@/components/home/hero";
@@ -8,6 +13,19 @@ import { Trust } from "@/components/home/trust";
 import { ClosingCta, Faq, ForWorkers } from "@/components/home/closing";
 
 export default function HomePage() {
+  const router = useRouter();
+  const { user, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace("/dashboard");
+    }
+  }, [user, loading, router]);
+
+  if (!loading && user) {
+    return null;
+  }
+
   return (
     <>
       <SiteHeader />
