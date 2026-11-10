@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Menu, X } from "lucide-react";
+import { Menu, X, User as UserIcon, LogOut } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
 import { Container } from "@/components/ui/container";
 import { buttonStyles } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 const NAV_LINKS = [
@@ -17,6 +18,7 @@ const NAV_LINKS = [
 
 export function SiteHeader() {
   const [open, setOpen] = useState(false);
+  const { user, profile, logOut, loading } = useAuth();
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -42,13 +44,47 @@ export function SiteHeader() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-5 md:flex">
-          <Link href="/login" className="text-[14px] font-medium text-ink transition-colors hover:text-ink-secondary">
-            Sign in
-          </Link>
-          <Link href="/signup" className={buttonStyles({ variant: "dark", size: "sm" })}>
-            Get started
-          </Link>
+        <div className="hidden items-center gap-4 md:flex">
+          {!loading && user ? (
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 rounded-full border border-line bg-surface/70 px-3 py-1.5 text-[13px] font-medium text-ink">
+                <span className="flex size-6 items-center justify-center rounded-full bg-accent/15 text-accent text-[11px] font-semibold">
+                  {user.displayName
+                    ? user.displayName.charAt(0).toUpperCase()
+                    : user.email?.charAt(0).toUpperCase() || "U"}
+                </span>
+                <span className="max-w-[120px] truncate">
+                  {user.displayName || user.email?.split("@")[0]}
+                </span>
+                {profile?.role === "worker" && (
+                  <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900 font-urdu">
+                    کاریگر
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => logOut()}
+                title="Sign out"
+                className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-secondary hover:text-danger transition-colors"
+              >
+                <LogOut className="size-4" />
+                <span>Sign out</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="text-[14px] font-medium text-ink transition-colors hover:text-ink-secondary"
+              >
+                Sign in
+              </Link>
+              <Link href="/signup" className={buttonStyles({ variant: "dark", size: "sm" })}>
+                Get started
+              </Link>
+            </>
+          )}
         </div>
 
         <button
@@ -85,20 +121,41 @@ export function SiteHeader() {
             ))}
           </nav>
           <div className="mt-auto grid gap-3">
-            <Link
-              href="/signup"
-              onClick={() => setOpen(false)}
-              className={buttonStyles({ variant: "dark", size: "lg", className: "w-full" })}
-            >
-              Get started
-            </Link>
-            <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              className={buttonStyles({ variant: "secondary", size: "lg", className: "w-full" })}
-            >
-              Sign in
-            </Link>
+            {!loading && user ? (
+              <div className="grid gap-2">
+                <div className="rounded-2xl border border-line bg-surface p-4 text-[14px] text-ink">
+                  <div className="font-semibold">{user.displayName || user.email}</div>
+                  <div className="text-[12px] text-ink-secondary">{user.email}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    logOut();
+                    setOpen(false);
+                  }}
+                  className={buttonStyles({ variant: "secondary", size: "lg", className: "w-full text-danger" })}
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : (
+              <>
+                <Link
+                  href="/signup"
+                  onClick={() => setOpen(false)}
+                  className={buttonStyles({ variant: "dark", size: "lg", className: "w-full" })}
+                >
+                  Get started
+                </Link>
+                <Link
+                  href="/login"
+                  onClick={() => setOpen(false)}
+                  className={buttonStyles({ variant: "secondary", size: "lg", className: "w-full" })}
+                >
+                  Sign in
+                </Link>
+              </>
+            )}
           </div>
         </Container>
       </div>
