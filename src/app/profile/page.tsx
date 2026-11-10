@@ -101,6 +101,49 @@ export default function ProfilePage() {
     }
   }, [profile]);
 
+  // Open Projects for Worker
+  const [openProjects, setOpenProjects] = useState<any[]>([]);
+  const [appliedProjectIds, setAppliedProjectIds] = useState<string[]>([]);
+
+  const loadOpenProjects = async () => {
+    try {
+      const res = await fetch(`/api/jobs?available=true&trade=${encodeURIComponent(profile?.trade || trade)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setOpenProjects(data.jobs || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => {
+    if (user && profile?.role === "worker") {
+      loadOpenProjects();
+    }
+  }, [user, profile, trade]);
+
+  const handleApplyProject = async (jobId: string) => {
+    if (!user) return;
+    try {
+      const res = await fetch("/api/jobs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jobId,
+          workerId: user.uid,
+          status: "accepted",
+        }),
+      });
+      if (res.ok) {
+        setAppliedProjectIds((prev) => [...prev, jobId]);
+        loadOpenProjects();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Clean timer
   useEffect(() => {
     return () => {
@@ -111,8 +154,18 @@ export default function ProfilePage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#FBFBFD] flex items-center justify-center">
-        <Loader2 className="size-8 animate-spin text-accent" />
+      <div className="min-h-screen bg-[#FBFBFD] flex flex-col justify-between">
+        <header className="border-b border-line/60 bg-white/80 h-14" />
+        <Container className="py-12 space-y-8 animate-pulse max-w-4xl">
+          <div className="space-y-3">
+            <div className="h-4 w-32 bg-surface-sunken rounded-full" />
+            <div className="h-8 w-64 bg-surface-sunken rounded-xl" />
+            <div className="h-4 w-48 bg-surface-sunken rounded-full" />
+          </div>
+          <div className="h-64 bg-surface rounded-3xl border border-line" />
+          <div className="h-48 bg-surface rounded-3xl border border-line" />
+        </Container>
+        <footer className="border-t border-line/60 h-12" />
       </div>
     );
   }
@@ -601,6 +654,101 @@ export default function ProfilePage() {
               </div>
             )}
           </div>
+
+          {/* OPEN PROJECTS FOR WORKER (Apply directly from Profile) */}
+          {isWorker && (
+            <div className="rounded-3xl border border-line bg-white p-7 sm:p-9 shadow-card space-y-5">
+              <div className="flex items-center justify-between border-b border-line pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-accent bg-accent-tint px-2.5 py-0.5 rounded-full">
+                      Live Matching Leads
+                    </span>
+                    <span className="text-[12px] text-ink-tertiary font-urdu">نئی جابز</span>
+                  </div>
+                  <h3 className="mt-1 text-[20px] font-semibold text-ink">
+                    Open Projects in Your Trade ({profile?.trade || trade})
+                  </h3>
+                  <p className="text-[13px] text-ink-secondary">
+                    Homeowners in Islamabad & Rawalpindi looking for {profile?.trade || trade} services
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={loadOpenProjects}
+                  className="text-[13px] font-medium text-link hover:underline cursor-pointer"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {openProjects.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-line bg-surface/40 p-8 text-center">
+                  <p className="text-[14px] text-ink-secondary">
+                    No open projects for {profile?.trade || trade} right now. When customers describe a job by voice, it will appear here immediately.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {openProjects.map((project) => {
+                    const isApplied = appliedProjectIds.includes(project.id);
+                    return (
+                      <div
+                        key={project.id}
+                        className="rounded-2xl border border-line bg-surface/30 p-5 flex flex-col justify-between hover:bg-white hover:shadow-card transition-all"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <span className="rounded-full bg-accent-tint px-2 py-0.5 text-[11px] font-medium text-accent uppercase tracking-wider">
+                              {project.trade}
+                            </span>
+                            <span className="text-[15px] font-semibold text-ink">
+                              PKR {project.budget?.toLocaleString() || "Negotiable"}
+                            </span>
+                          </div>
+                          <h4 className="mt-2 text-[16px] font-semibold text-ink">{project.title}</h4>
+                          {project.description && (
+                            <p className="mt-1 text-[13px] text-ink-secondary line-clamp-2">
+                              {project.description}
+                            </p>
+                          )}
+                          <div className="mt-3 flex items-center gap-2 text-[12px] text-ink-tertiary">
+                            <MapPin className="size-3.5" />
+                            <span>{project.sector || "Islamabad"}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-3 border-t border-line flex items-center justify-between">
+                          <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">
+                            Escrow Ready
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyProject(project.id)}
+                            disabled={isApplied}
+                            className={buttonStyles({
+                              variant: isApplied ? "secondary" : "dark",
+                              size: "sm",
+                              className: "cursor-pointer",
+                            })}
+                          >
+                            {isApplied ? (
+                              <span className="flex items-center gap-1 text-emerald-700">
+                                <CheckCircle2 className="size-3.5" /> Applied
+                              </span>
+                            ) : (
+                              <span>Apply to Project / درخواست دیں</span>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </Container>
       </main>
 

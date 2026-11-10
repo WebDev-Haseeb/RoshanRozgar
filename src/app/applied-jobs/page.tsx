@@ -109,8 +109,10 @@ export default function AppliedJobsPage() {
           </div>
 
           {loading ? (
-            <div className="py-20 text-center">
-              <Loader2 className="mx-auto size-8 animate-spin text-accent" />
+            <div className="rounded-3xl border border-line bg-white shadow-card p-6 space-y-4 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-20 bg-surface rounded-2xl" />
+              ))}
             </div>
           ) : filteredJobs.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-line bg-white p-12 text-center shadow-card">

@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       conditions.push(`j.worker_id = $${params.length}`);
     } else if (available === "true") {
       conditions.push(`j.status = 'pending' AND j.worker_id IS NULL`);
-      if (trade) {
+      if (trade && trade !== "all") {
         params.push(trade);
         conditions.push(`j.trade = $${params.length}`);
       }
